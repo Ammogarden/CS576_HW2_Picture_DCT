@@ -24,7 +24,10 @@
 #include <memory.h>
 #include <tchar.h>
 #include <vector>
+#include <math.h>
+#include <iostream>
 
+const double M_PI = 3.14159265358979323846; /* pi */
 
 // Class structure of Image 
 // Use to encapsulate an RGB image
@@ -59,7 +62,7 @@ public:
 	char*	getImagePath() { return ImagePath; }
 
 	// Input Output operations
-	bool	ReadImage();
+	virtual bool	ReadImage();
 	bool	WriteImage();
 
 	// Modifications
@@ -74,11 +77,13 @@ public:
 	MyEncodeImage(int width, int height, int N);
 	~MyEncodeImage() {};
 
-	//bool	ReadImage();
+	bool	ReadImage();
 
 private:
-	std::vector<char> RBuffer;
-	std::vector<char> GBuffer;
+	//3-d vector, [row][col] stores the 64 DCT coefficient for the corresponding 8x8 block
+	std::vector<std::vector<std::vector<double>>> RDCT;
+	std::vector<std::vector<std::vector<double>>> GDCT;
+	std::vector<std::vector<std::vector<double>>> BDCT;
 	int quantizationLevel = 0;
 };
 

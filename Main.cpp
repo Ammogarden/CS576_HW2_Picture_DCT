@@ -16,6 +16,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <windows.h>
 
 #define MAX_LOADSTRING 100
 
@@ -25,7 +26,7 @@ HINSTANCE		hInst;							// current instance
 TCHAR szTitle[MAX_LOADSTRING];					// The title bar text
 TCHAR szWindowClass[MAX_LOADSTRING];			// The title bar text
 
-MyImage		outImage;						// image object for output
+MyEncodeImage		outImage;					// image object for output
 int QUANTIZATION_LEVEL = 0;						// Quantization level
 int DELIVERY_MODE = 0;							// Delivery mode
 int LATENCY = 0;								// Latency
@@ -254,44 +255,46 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		case WM_PAINT:
 			{
+
 				hdc = BeginPaint(hWnd, &ps);
 
 				//print input image
 				BITMAPINFO bmi;
 				CBitmap bitmap;
-				memset(&bmi,0,sizeof(bmi));
+				memset(&bmi, 0, sizeof(bmi));
 				bmi.bmiHeader.biSize = sizeof(bmi.bmiHeader);
 				bmi.bmiHeader.biWidth = inImage.getWidth();
 				bmi.bmiHeader.biHeight = -inImage.getHeight();  // Use negative height.  DIB is top-down.
 				bmi.bmiHeader.biPlanes = 1;
 				bmi.bmiHeader.biBitCount = 24;
 				bmi.bmiHeader.biCompression = BI_RGB;
-				bmi.bmiHeader.biSizeImage = inImage.getWidth()*inImage.getHeight();
+				bmi.bmiHeader.biSizeImage = inImage.getWidth() * inImage.getHeight();
 
 				SetDIBitsToDevice(hdc,
-								  0,100,inImage.getWidth(),inImage.getHeight(),
-								  0,0,0,inImage.getHeight(),
-								  inImage.getImageData(),&bmi,DIB_RGB_COLORS);
-				
-				
-				//paint output image
-				BITMAPINFO bmiOut;
-				CBitmap bitmapOut;
-				memset(&bmiOut, 0, sizeof(bmiOut));
-				bmiOut.bmiHeader.biSize = sizeof(bmiOut.bmiHeader);
-				bmiOut.bmiHeader.biWidth = outImage.getWidth();
-				bmiOut.bmiHeader.biHeight = -outImage.getHeight();  // Use negative height.  DIB is top-down.
-				bmiOut.bmiHeader.biPlanes = 1;
-				bmiOut.bmiHeader.biBitCount = 24;
-				bmiOut.bmiHeader.biCompression = BI_RGB;
-				bmiOut.bmiHeader.biSizeImage = outImage.getWidth() * outImage.getHeight();
+					0, 100, inImage.getWidth(), inImage.getHeight(),
+					0, 0, 0, inImage.getHeight(),
+					inImage.getImageData(), &bmi, DIB_RGB_COLORS);
 
-				SetDIBitsToDevice(hdc,
-					700, 100, outImage.getWidth(), outImage.getHeight(),
-					0, 0, 0, outImage.getHeight(),
-					outImage.getImageData(), &bmiOut, DIB_RGB_COLORS);
-				
+				char* nullData = new char[outImage.getWidth() * outImage.getHeight() * 3];
+				memset(nullData, 0, outImage.getWidth() * outImage.getHeight() * 3);
+				for (int i = 0; i < 4; i++) {
+					//paint output image
+					BITMAPINFO bmiOut;
+					CBitmap bitmapOut;
+					memset(&bmiOut, 0, sizeof(bmiOut));
+					bmiOut.bmiHeader.biSize = sizeof(bmiOut.bmiHeader);
+					bmiOut.bmiHeader.biWidth = outImage.getWidth();
+					bmiOut.bmiHeader.biHeight = -outImage.getHeight();  // Use negative height.  DIB is top-down.
+					bmiOut.bmiHeader.biPlanes = 1;
+					bmiOut.bmiHeader.biBitCount = 24;
+					bmiOut.bmiHeader.biCompression = BI_RGB;
+					bmiOut.bmiHeader.biSizeImage = outImage.getWidth() * outImage.getHeight();
 
+					SetDIBitsToDevice(hdc,
+						700, 100, outImage.getWidth(), outImage.getHeight(),
+						0, 0, 0, outImage.getHeight(),
+						outImage.getImageData(), &bmiOut, DIB_RGB_COLORS);	
+				}
 				EndPaint(hWnd, &ps);
 			}
 			break;
