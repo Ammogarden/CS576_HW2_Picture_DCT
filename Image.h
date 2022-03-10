@@ -59,8 +59,8 @@ public:
 	char*	getImagePath() { return ImagePath; }
 
 	// Input Output operations
-	virtual bool	ReadImage();
-	virtual bool	WriteImage();
+	bool	ReadImage();
+	bool	WriteImage();
 
 	// Modifications
 	bool	Modify();
@@ -71,12 +71,15 @@ class MyEncodeImage : public MyImage
 {
 public:
 	MyEncodeImage() {};
+	MyEncodeImage(int width, int height, int N);
 	~MyEncodeImage() {};
 
+	//bool	ReadImage();
 
 private:
 	std::vector<char> RBuffer;
 	std::vector<char> GBuffer;
+	int quantizationLevel = 0;
 };
 
 #endif //IMAGE_DISPLAY

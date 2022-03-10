@@ -202,3 +202,19 @@ bool MyImage::Modify()
 
 	return false;
 }
+
+MyEncodeImage::MyEncodeImage(int width, int height, int N) {
+	setWidth(width);
+	setHeight(height);
+	quantizationLevel = N;
+}
+
+
+/*
+// MyImage::ReadImage
+// Function to read the image given a path, and encode it using DCT
+bool MyEncodeImage::ReadImage()
+{
+	
+}
+*/

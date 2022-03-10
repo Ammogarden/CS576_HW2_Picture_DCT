@@ -25,7 +25,7 @@ HINSTANCE		hInst;							// current instance
 TCHAR szTitle[MAX_LOADSTRING];					// The title bar text
 TCHAR szWindowClass[MAX_LOADSTRING];			// The title bar text
 
-MyImage			outImage;						// image object for output
+MyImage		outImage;						// image object for output
 int QUANTIZATION_LEVEL = 0;						// Quantization level
 int DELIVERY_MODE = 0;							// Delivery mode
 int LATENCY = 0;								// Latency
@@ -95,16 +95,26 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 
 
 
-
-
 	// Set up the images
 	int w = 352;
 	int h = 288;
 	inImage.setWidth(w);
 	inImage.setHeight(h);
 
-	inImage.setImagePath(lpCmdLine);
+	inImage.setImagePath(argv[0].c_str());
 	inImage.ReadImage();
+
+	outImage.setWidth(w);
+	outImage.setHeight(h);
+
+	outImage.setImagePath(argv[0].c_str());
+	outImage.ReadImage();
+	/*
+	outImage = MyEncodeImage(w, h, QUANTIZATION_LEVEL);
+	outImage.setImagePath(lpCmdLine);
+	outImage.ReadImage();
+	*/
+
 
 	// Initialize global strings
 	LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -245,13 +255,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_PAINT:
 			{
 				hdc = BeginPaint(hWnd, &ps);
-				// TO DO: Add any drawing code here...
-				char text[1000];
-				strcpy(text, "The original image is shown as follows. \n");
-				DrawText(hdc, text, strlen(text), &rt, DT_LEFT);
-				strcpy(text, "\nUpdate program with your code to modify input image. \n");
-				DrawText(hdc, text, strlen(text), &rt, DT_LEFT);
 
+				//print input image
 				BITMAPINFO bmi;
 				CBitmap bitmap;
 				memset(&bmi,0,sizeof(bmi));
@@ -267,7 +272,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 								  0,100,inImage.getWidth(),inImage.getHeight(),
 								  0,0,0,inImage.getHeight(),
 								  inImage.getImageData(),&bmi,DIB_RGB_COLORS);
-							   
+				
+				
+				//paint output image
+				BITMAPINFO bmiOut;
+				CBitmap bitmapOut;
+				memset(&bmiOut, 0, sizeof(bmiOut));
+				bmiOut.bmiHeader.biSize = sizeof(bmiOut.bmiHeader);
+				bmiOut.bmiHeader.biWidth = outImage.getWidth();
+				bmiOut.bmiHeader.biHeight = -outImage.getHeight();  // Use negative height.  DIB is top-down.
+				bmiOut.bmiHeader.biPlanes = 1;
+				bmiOut.bmiHeader.biBitCount = 24;
+				bmiOut.bmiHeader.biCompression = BI_RGB;
+				bmiOut.bmiHeader.biSizeImage = outImage.getWidth() * outImage.getHeight();
+
+				SetDIBitsToDevice(hdc,
+					700, 100, outImage.getWidth(), outImage.getHeight(),
+					0, 0, 0, outImage.getHeight(),
+					outImage.getImageData(), &bmiOut, DIB_RGB_COLORS);
+				
+
 				EndPaint(hWnd, &ps);
 			}
 			break;
