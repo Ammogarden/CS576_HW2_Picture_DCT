@@ -74,10 +74,17 @@ class MyEncodeImage : public MyImage
 {
 public:
 	MyEncodeImage() {};
-	MyEncodeImage(int width, int height, int N);
+	MyEncodeImage(int width, int height, int N, int delivery);
+	void setDeliveryMode(int delivery) { deliveryMode = delivery; }
+	void setQuantizationLevel(int N) { quantizationLevel = N; }
 	~MyEncodeImage() {};
 
+	//Instead of reading the input image directly to data buffer, do DCT and store the coefficient
 	bool	ReadImage();
+	
+	//decode data from DCT coefficient, behavior depends on delivery mode
+	//return true if all data has finished decoding, false if there are still remaining data for decode
+	bool    decode();
 
 private:
 	//3-d vector, [row][col] stores the 64 DCT coefficient for the corresponding 8x8 block
@@ -85,6 +92,36 @@ private:
 	std::vector<std::vector<std::vector<double>>> GDCT;
 	std::vector<std::vector<std::vector<double>>> BDCT;
 	int quantizationLevel = 0;
+	int deliveryMode = 1;
+
+
+	
+	//output buffer
+	std::vector<std::vector<UINT8>> outRbuf;
+	std::vector<std::vector<UINT8>> outGbuf;
+	std::vector<std::vector<UINT8>> outBbuf;
+
+	//value of output buffer before quantization
+	std::vector<std::vector<double>> doubleRbuf;
+	std::vector<std::vector<double>> doubleGbuf;
+	std::vector<std::vector<double>> doubleBbuf;
+
+	//index used by Sequential delivery mode 1:
+	int seqRow = 0;
+	int seqCol = 0;
+
+	//index used by Progressive delivery mode 2:
+	int progressIndex = 0;
+	const std::vector<std::vector<int>> zigZagOrder = {
+		{ 0, 0 }, { 0, 1 }, { 1, 0 }, { 2, 0 }, { 1, 1 }, { 0, 2 }, { 0, 3 }, { 1, 2 },
+		{ 2, 1 }, { 3, 0 }, { 4, 0 }, { 3, 1 }, { 2, 2 }, { 1, 3 }, { 0, 4 }, { 0, 5 },
+		{ 1, 4 }, { 2, 3 }, { 3, 2 }, { 4, 1 }, { 5, 0 }, { 6, 0 }, { 5, 1 }, { 4, 2 },
+		{ 3, 3 }, { 2, 4 }, { 1, 5 }, { 0, 6 }, { 0, 7 }, { 1, 6 }, { 2, 5 }, { 3, 4 },
+		{ 4, 3 }, { 5, 2 }, { 6, 1 }, { 7, 0 }, { 7, 1 }, { 6, 2 }, { 5, 3 }, { 4, 4 },
+		{ 3, 5 }, { 2, 6 }, { 1, 7 }, { 2, 7 }, { 3, 6 }, { 4, 5 }, { 5, 4 }, { 6, 3 },
+		{ 7, 2 }, { 7, 3 }, { 6, 4 }, { 5, 5 }, { 4, 6 }, { 3, 7 }, { 4, 7 }, { 5, 6 },
+		{ 6, 5 }, { 7, 4 }, { 7, 5 }, { 6, 6 }, { 5, 7 }, { 6, 7 }, { 7, 6 }, { 7, 7 },
+	};
 };
 
 #endif //IMAGE_DISPLAY

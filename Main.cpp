@@ -107,15 +107,11 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 
 	outImage.setWidth(w);
 	outImage.setHeight(h);
-
+	outImage.setQuantizationLevel(QUANTIZATION_LEVEL);
+	outImage.setDeliveryMode(DELIVERY_MODE);
+	
 	outImage.setImagePath(argv[0].c_str());
 	outImage.ReadImage();
-	/*
-	outImage = MyEncodeImage(w, h, QUANTIZATION_LEVEL);
-	outImage.setImagePath(lpCmdLine);
-	outImage.ReadImage();
-	*/
-
 
 	// Initialize global strings
 	LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -275,9 +271,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					0, 0, 0, inImage.getHeight(),
 					inImage.getImageData(), &bmi, DIB_RGB_COLORS);
 
-				char* nullData = new char[outImage.getWidth() * outImage.getHeight() * 3];
-				memset(nullData, 0, outImage.getWidth() * outImage.getHeight() * 3);
-				for (int i = 0; i < 4; i++) {
+				
+				bool isEnd = false;
+				do {
+					isEnd = outImage.decode();
 					//paint output image
 					BITMAPINFO bmiOut;
 					CBitmap bitmapOut;
@@ -293,8 +290,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					SetDIBitsToDevice(hdc,
 						700, 100, outImage.getWidth(), outImage.getHeight(),
 						0, 0, 0, outImage.getHeight(),
-						outImage.getImageData(), &bmiOut, DIB_RGB_COLORS);	
-				}
+						outImage.getImageData(), &bmiOut, DIB_RGB_COLORS);
+					Sleep(LATENCY);
+				} while (!isEnd);
+
 				EndPaint(hWnd, &ps);
 			}
 			break;

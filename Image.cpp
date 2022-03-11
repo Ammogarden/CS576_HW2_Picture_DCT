@@ -203,10 +203,11 @@ bool MyImage::Modify()
 	return false;
 }
 
-MyEncodeImage::MyEncodeImage(int width, int height, int N) {
+MyEncodeImage::MyEncodeImage(int width, int height, int N, int delivery) {
 	setWidth(width);
 	setHeight(height);
 	quantizationLevel = N;
+	deliveryMode = delivery;
 }
 
 
@@ -225,6 +226,18 @@ bool MyEncodeImage::ReadImage()
 	int Width = getWidth();
 	int Height = getHeight();
 	char* Data = getImageData();
+
+	//create buffer in heap used for output
+	outRbuf = std::vector<std::vector<UINT8>>(Height, std::vector<UINT8>(Width));
+	outGbuf = std::vector<std::vector<UINT8>>(Height, std::vector<UINT8>(Width));
+	outBbuf = std::vector<std::vector<UINT8>>(Height, std::vector<UINT8>(Width));
+
+	doubleRbuf = std::vector<std::vector<double>>(Height, std::vector<double>(Width));
+	doubleGbuf = std::vector<std::vector<double>>(Height, std::vector<double>(Width));
+	doubleBbuf = std::vector<std::vector<double>>(Height, std::vector<double>(Width));
+
+	Data = new char[Width * Height * 3];
+	setImageData(Data);
 
 	// Verify ImagePath
 	if (ImagePath[0] == 0 || Width < 0 || Height < 0 )
@@ -268,9 +281,9 @@ bool MyEncodeImage::ReadImage()
 		BDCT.push_back(std::vector<std::vector<double>>());
 		for (int j = 0; j + 8 <= Width; j += 8) {
 			//the 8x8 block is from top left corner [i, j] to bottom right corner [i + 7, j + 7]
-			std::vector<double> rDctCoeficient(64);
-			std::vector<double> gDctCoeficient(64);
-			std::vector<double> bDctCoeficient(64);
+			std::vector<double> rDctCoefficient(64);
+			std::vector<double> gDctCoefficient(64);
+			std::vector<double> bDctCoefficient(64);
 
 			for (int u = 0; u < 8; u++) {
 				for (int v = 0; v < 8; v++) {
@@ -291,63 +304,200 @@ bool MyEncodeImage::ReadImage()
 					gCoef *= C(u) * C(v) / 4.0;
 					bCoef *= C(u) * C(v) / 4.0;
 
-					rDctCoeficient[index] = rCoef;
-					gDctCoeficient[index] = gCoef;
-					bDctCoeficient[index] = bCoef;
+					rDctCoefficient[index] = rCoef;
+					gDctCoefficient[index] = gCoef;
+					bDctCoefficient[index] = bCoef;
 				}
 			}
 
-			RDCT.back().push_back(rDctCoeficient);
-			GDCT.back().push_back(gDctCoeficient);
-			BDCT.back().push_back(bDctCoeficient);
+			RDCT.back().push_back(rDctCoefficient);
+			GDCT.back().push_back(gDctCoefficient);
+			BDCT.back().push_back(bDctCoefficient);
 		}
 	}
-	//TODO: for test only: do IDCT to reconstruct data
-	std::fill(Rbuf.begin(), Rbuf.end(), std::vector<UINT8>(Width, 0));
-	std::fill(Gbuf.begin(), Gbuf.end(), std::vector<UINT8>(Width, 0));
-	std::fill(Bbuf.begin(), Bbuf.end(), std::vector<UINT8>(Width, 0));
 
-	for (int x = 0; x < Height; x++) {
-		for (int y = 0; y < Width; y++) {
-			int r = x / 8;
-			int c = y / 8;
-
-			double rVal = 0;
-			double gVal = 0;
-			double bVal = 0;
-			for (int u = 0; u < 8; u++) {
-				for (int v = 0; v < 8; v++) {
-					int index = u * 8 + v;
-					rVal += C(u) * C(v) * RDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
-					gVal += C(u) * C(v) * GDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
-					bVal += C(u) * C(v) * BDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+	//quantize all coefficient
+	//immediate resize back instead of doing it at decoder side for simplicity
+	if (quantizationLevel > 0) {
+		for (int i = 0; i < RDCT.size(); i++) {
+			for (int j = 0; j < RDCT[0].size(); j++) {
+				for (int k = 0; k < RDCT[0][0].size(); k++) {
+					RDCT[i][j][k] = round(RDCT[i][j][k] / pow(2.0, quantizationLevel));
+					RDCT[i][j][k] *= pow(2.0, quantizationLevel);
+					GDCT[i][j][k] = round(GDCT[i][j][k] / pow(2.0, quantizationLevel));
+					GDCT[i][j][k] *= pow(2.0, quantizationLevel);
+					BDCT[i][j][k] = round(BDCT[i][j][k] / pow(2.0, quantizationLevel));
+					BDCT[i][j][k] *= pow(2.0, quantizationLevel);
 				}
 			}
-
-			rVal /= 4.0;
-			gVal /= 4.0;
-			bVal /= 4.0;
-			Rbuf[x][y] = (UINT8)rVal;
-			Gbuf[x][y] = (UINT8)gVal;
-			Bbuf[x][y] = (UINT8)bVal;
 		}
 	}
-
-
-
 	
-	// Allocate Data structure and copy
-	Data = new char[Width*Height*3];
-	for (int i = 0; i < Height*Width; i++)
-	{
-		Data[3*i]	= Bbuf[i / Width][i % Width];
-		Data[3*i+1]	= Gbuf[i / Width][i % Width];
-		Data[3*i+2]	= Rbuf[i / Width][i % Width];
-	}
-	setImageData(Data);
 
 	// Clean up and return
 	fclose(IN_FILE);
+
+	return true;
+}
+
+bool    MyEncodeImage::decode() {
+	int Width = getWidth();
+	int Height = getHeight();
+	char* Data = getImageData();
+
+	if (deliveryMode == 1) {
+		if (seqRow >= Height || seqCol >= Width) {
+			return true;
+		}
+		//sequential mode, for each time decode one block only
+		//process block from top-left corner [seqRow, seqCol] to [seqRow + 7, seqCol + 7]
+		for (int x = seqRow; x < seqRow + 8; x++) {
+			for (int y = seqCol; y < seqCol + 8; y++) {
+				int r = x / 8;
+				int c = y / 8;
+
+				double rVal = 0;
+				double gVal = 0;
+				double bVal = 0;
+				for (int u = 0; u < 8; u++) {
+					for (int v = 0; v < 8; v++) {
+						int index = u * 8 + v;
+						rVal += C(u) * C(v) * RDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+						gVal += C(u) * C(v) * GDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+						bVal += C(u) * C(v) * BDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+					}
+				}
+
+				rVal /= 4.0;
+				gVal /= 4.0;
+				bVal /= 4.0;
+
+				doubleRbuf[x][y] = rVal;
+				doubleGbuf[x][y] = gVal;
+				doubleBbuf[x][y] = bVal;
+
+				rVal = min(rVal, 255);
+				rVal = max(rVal, 0);
+				gVal = min(gVal, 255);
+				gVal = max(gVal, 0);
+				bVal = min(bVal, 255);
+				bVal = max(bVal, 0);
+				outRbuf[x][y] = (UINT8)rVal;
+				outGbuf[x][y] = (UINT8)gVal;
+				outBbuf[x][y] = (UINT8)bVal;
+			}
+		}
+
+		//advance seqRow and seqCol
+		if (seqCol + 8 >= Width) {
+			seqRow += 8;
+			seqCol = 0;
+		}
+		else {
+			seqCol += 8;
+		}
+	}
+	else if (deliveryMode == 2) {
+		//progressive mode, for each time decode the next DCT coefficient for all block
+		//will only process coefficient within [0:index]
+		if (progressIndex >= 64) {
+			return true;
+		}
+		for (int x = 0; x < Height; x++) {
+			for (int y = 0; y < Width; y++) {
+				int r = x / 8;
+				int c = y / 8;
+
+				double rVal = doubleRbuf[x][y] * 4;
+				double gVal = doubleGbuf[x][y] * 4;
+				double bVal = doubleBbuf[x][y] * 4;
+				//determine u and v based on progressIndex
+				int u = zigZagOrder[progressIndex][0];
+				int v = zigZagOrder[progressIndex][1];
+				int index = u * 8 + v;
+				rVal += C(u) * C(v) * RDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+				gVal += C(u) * C(v) * GDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+				bVal += C(u) * C(v) * BDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+
+				rVal /= 4.0;
+				gVal /= 4.0;
+				bVal /= 4.0;
+
+				doubleRbuf[x][y] = rVal;
+				doubleGbuf[x][y] = gVal;
+				doubleBbuf[x][y] = bVal;
+
+				rVal = min(rVal, 255);
+				rVal = max(rVal, 0);
+				gVal = min(gVal, 255);
+				gVal = max(gVal, 0);
+				bVal = min(bVal, 255);
+				bVal = max(bVal, 0);
+				outRbuf[x][y] = (UINT8)rVal;
+				outGbuf[x][y] = (UINT8)gVal;
+				outBbuf[x][y] = (UINT8)bVal;
+			}
+		}
+		progressIndex++;
+	}
+	else if (deliveryMode == 3) {
+	
+	
+	}
+	else {
+		//unknown delivery mode, deliver all content at once
+		for (int x = 0; x < Height; x++) {
+			for (int y = 0; y < Width; y++) {
+				int r = x / 8;
+				int c = y / 8;
+
+				double rVal = 0;
+				double gVal = 0;
+				double bVal = 0;
+				for (int u = 0; u < 8; u++) {
+					for (int v = 0; v < 8; v++) {
+						int index = u * 8 + v;
+						rVal += C(u) * C(v) * RDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+						gVal += C(u) * C(v) * GDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+						bVal += C(u) * C(v) * BDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+					}
+				}
+
+				rVal /= 4.0;
+				gVal /= 4.0;
+				bVal /= 4.0;
+				outRbuf[x][y] = (UINT8)rVal;
+				outGbuf[x][y] = (UINT8)gVal;
+				outBbuf[x][y] = (UINT8)bVal;
+			}
+		}
+	}
+	
+	// Allocate Data structure and copy
+	
+	for (int i = 0; i < Height * Width; i++)
+	{
+		Data[3 * i] = outBbuf[i / Width][i % Width];
+		Data[3 * i + 1] = outGbuf[i / Width][i % Width];
+		Data[3 * i + 2] = outRbuf[i / Width][i % Width];
+	}
+	setImageData(Data);
+
+
+
+	switch (deliveryMode)
+	{
+	case 1:
+		return seqRow >= Height;
+		break;
+	case 2:
+		return progressIndex >= 64;
+		break;
+	case 3:
+		break;
+	default:
+		break;
+	}
 
 	return true;
 }
