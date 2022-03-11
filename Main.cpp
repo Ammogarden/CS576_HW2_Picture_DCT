@@ -273,6 +273,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				
 				bool isEnd = false;
+				outImage.dequantize();
 				do {
 					isEnd = outImage.decode();
 					//paint output image

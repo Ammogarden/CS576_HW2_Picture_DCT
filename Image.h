@@ -86,6 +86,9 @@ public:
 	//return true if all data has finished decoding, false if there are still remaining data for decode
 	bool    decode();
 
+	void quantize();
+	void dequantize();
+
 private:
 	//3-d vector, [row][col] stores the 64 DCT coefficient for the corresponding 8x8 block
 	std::vector<std::vector<std::vector<double>>> RDCT;
@@ -94,7 +97,7 @@ private:
 	int quantizationLevel = 0;
 	int deliveryMode = 1;
 
-
+	bool isDequantized = false;
 	
 	//output buffer
 	std::vector<std::vector<UINT8>> outRbuf;
@@ -110,7 +113,7 @@ private:
 	int seqRow = 0;
 	int seqCol = 0;
 
-	//index used by Progressive delivery mode 2:
+	//index used by Progressive Spectral Selection delivery mode 2:
 	int progressIndex = 0;
 	const std::vector<std::vector<int>> zigZagOrder = {
 		{ 0, 0 }, { 0, 1 }, { 1, 0 }, { 2, 0 }, { 1, 1 }, { 0, 2 }, { 0, 3 }, { 1, 2 },
@@ -122,6 +125,11 @@ private:
 		{ 7, 2 }, { 7, 3 }, { 6, 4 }, { 5, 5 }, { 4, 6 }, { 3, 7 }, { 4, 7 }, { 5, 6 },
 		{ 6, 5 }, { 7, 4 }, { 7, 5 }, { 6, 6 }, { 5, 7 }, { 6, 7 }, { 7, 6 }, { 7, 7 },
 	};
+
+	//index used by progressive successive bit delivery mode 3:
+	UINT8 mask = 0;
+	bool isDecoded = false;
+	int order = 7;
 };
 
 #endif //IMAGE_DISPLAY

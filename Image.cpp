@@ -316,23 +316,8 @@ bool MyEncodeImage::ReadImage()
 		}
 	}
 
-	//quantize all coefficient
-	//immediate resize back instead of doing it at decoder side for simplicity
-	if (quantizationLevel > 0) {
-		for (int i = 0; i < RDCT.size(); i++) {
-			for (int j = 0; j < RDCT[0].size(); j++) {
-				for (int k = 0; k < RDCT[0][0].size(); k++) {
-					RDCT[i][j][k] = round(RDCT[i][j][k] / pow(2.0, quantizationLevel));
-					RDCT[i][j][k] *= pow(2.0, quantizationLevel);
-					GDCT[i][j][k] = round(GDCT[i][j][k] / pow(2.0, quantizationLevel));
-					GDCT[i][j][k] *= pow(2.0, quantizationLevel);
-					BDCT[i][j][k] = round(BDCT[i][j][k] / pow(2.0, quantizationLevel));
-					BDCT[i][j][k] *= pow(2.0, quantizationLevel);
-				}
-			}
-		}
-	}
-	
+	//do quantization on the DCT coefficients
+	quantize();
 
 	// Clean up and return
 	fclose(IN_FILE);
@@ -398,7 +383,7 @@ bool    MyEncodeImage::decode() {
 		}
 	}
 	else if (deliveryMode == 2) {
-		//progressive mode, for each time decode the next DCT coefficient for all block
+		//progressive spectral selection mode, for each time decode the next DCT coefficient for all block
 		//will only process coefficient within [0:index]
 		if (progressIndex >= 64) {
 			return true;
@@ -441,8 +426,62 @@ bool    MyEncodeImage::decode() {
 		progressIndex++;
 	}
 	else if (deliveryMode == 3) {
-	
-	
+		//progressive successive bit mode, each time deliver one MSB for pixles
+		if (order < 0) {
+			return true;
+		}
+		mask |= 1 << order;
+
+		//do IDCT only once and store the result at double buffer
+		if(!isDecoded) {
+			isDecoded = true;
+			for (int x = 0; x < Height; x++) {
+				for (int y = 0; y < Width; y++) {
+					int r = x / 8;
+					int c = y / 8;
+
+					double rVal = 0;
+					double gVal = 0;
+					double bVal = 0;
+					for (int u = 0; u < 8; u++) {
+						for (int v = 0; v < 8; v++) {
+							int index = u * 8 + v;
+							rVal += C(u) * C(v) * RDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+							gVal += C(u) * C(v) * GDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+							bVal += C(u) * C(v) * BDCT[r][c][index] * cos((2 * x + 1) * u * M_PI / 16.0) * cos((2 * y + 1) * v * M_PI / 16.0);
+						}
+					}
+
+					rVal /= 4.0;
+					gVal /= 4.0;
+					bVal /= 4.0;
+					doubleRbuf[x][y] = rVal;
+					doubleGbuf[x][y] = gVal;
+					doubleBbuf[x][y] = bVal;
+				}
+			}
+		}
+		
+		//then for each turn, use mask to extract MSBs for each pixel and put it into output buffer
+		for (int x = 0; x < Height; x++) {
+			for (int y = 0; y < Width; y++) {
+				double rVal = doubleRbuf[x][y];
+				double gVal = doubleGbuf[x][y];
+				double bVal = doubleBbuf[x][y];
+				rVal = min(rVal, 255);
+				rVal = max(rVal, 0);
+				gVal = min(gVal, 255);
+				gVal = max(gVal, 0);
+				bVal = min(bVal, 255);
+				bVal = max(bVal, 0);
+
+				outRbuf[x][y] = (UINT8)rVal & mask;
+				outGbuf[x][y] = (UINT8)gVal & mask;
+				outBbuf[x][y] = (UINT8)bVal & mask;
+			}
+		}
+
+		order--;
 	}
 	else {
 		//unknown delivery mode, deliver all content at once
@@ -466,6 +505,16 @@ bool    MyEncodeImage::decode() {
 				rVal /= 4.0;
 				gVal /= 4.0;
 				bVal /= 4.0;
+				doubleRbuf[x][y] = rVal;
+				doubleGbuf[x][y] = gVal;
+				doubleBbuf[x][y] = bVal;
+
+				rVal = min(rVal, 255);
+				rVal = max(rVal, 0);
+				gVal = min(gVal, 255);
+				gVal = max(gVal, 0);
+				bVal = min(bVal, 255);
+				bVal = max(bVal, 0);
 				outRbuf[x][y] = (UINT8)rVal;
 				outGbuf[x][y] = (UINT8)gVal;
 				outBbuf[x][y] = (UINT8)bVal;
@@ -494,10 +543,44 @@ bool    MyEncodeImage::decode() {
 		return progressIndex >= 64;
 		break;
 	case 3:
+		return order < 0;
 		break;
 	default:
 		break;
 	}
 
 	return true;
+}
+
+void MyEncodeImage::quantize() {
+	//quantize all coefficient
+	if (quantizationLevel > 0) {
+		for (int i = 0; i < RDCT.size(); i++) {
+			for (int j = 0; j < RDCT[0].size(); j++) {
+				for (int k = 0; k < RDCT[0][0].size(); k++) {
+					RDCT[i][j][k] = round(RDCT[i][j][k] / pow(2.0, quantizationLevel));
+					GDCT[i][j][k] = round(GDCT[i][j][k] / pow(2.0, quantizationLevel));
+					BDCT[i][j][k] = round(BDCT[i][j][k] / pow(2.0, quantizationLevel));
+				}
+			}
+		}
+	}
+}
+
+void MyEncodeImage::dequantize() {
+	if (isDequantized) {
+		return;
+	}
+	isDequantized = true;
+	if (quantizationLevel > 0) {
+		for (int i = 0; i < RDCT.size(); i++) {
+			for (int j = 0; j < RDCT[0].size(); j++) {
+				for (int k = 0; k < RDCT[0][0].size(); k++) {
+					RDCT[i][j][k] *= pow(2.0, quantizationLevel);
+					GDCT[i][j][k] *= pow(2.0, quantizationLevel);
+					BDCT[i][j][k] *= pow(2.0, quantizationLevel);
+				}
+			}
+		}
+	}
 }
